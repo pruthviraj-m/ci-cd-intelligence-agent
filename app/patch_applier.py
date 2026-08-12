@@ -41,6 +41,17 @@ def apply_change(change, project_root):
     )
 
     if not is_valid:
+        file_path = Path(project_root) / change.file_path
+
+        if file_path.exists():
+            current_content = file_path.read_text(
+                encoding="utf-8"
+            )
+
+            # Patch was already applied.
+            if change.new_text in current_content:
+                return "Patch already applied."
+
         raise RuntimeError(message)
 
     file_path = Path(project_root) / change.file_path
