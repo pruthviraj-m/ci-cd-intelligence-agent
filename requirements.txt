@@ -3,3 +3,4 @@ requests
 openai
 pydantic
 google-genai
+kafka-python
