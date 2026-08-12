@@ -2,7 +2,10 @@ from app.incident_collector import get_failed_incident
 from app.llm_client import diagnose_incident
 from app.llm_client import generate_patch
 from app.patch_applier import apply_change, run_tests
+from app.pr_creator import create_pull_request
 
+
+import subprocess
 
 RUN_ID = 31593832847
 
@@ -95,3 +98,49 @@ if test_result["passed"]:
 else:
     print("❌ PATCH FAILED VALIDATION")
     print(test_result["stderr"])
+
+# if test_result["passed"]:
+#     print("\n========== COMMITTING FIX ==========")
+
+#     subprocess.run(
+#         ["git", "add", "app/calculator.py"],
+#         check=True
+#     )
+
+#     subprocess.run(
+#         [
+#             "git",
+#             "commit",
+#             "-m",
+#             f"Fix CI failure for run {RUN_ID}"
+#         ],
+#         check=True
+#     )
+
+#     subprocess.run(
+#         [
+#             "git",
+#             "push",
+#             "-u",
+#             "origin",
+#             "agent/fix-31593832847"
+#         ],
+#         check=True
+#     )
+
+#     print("✅ Fix committed and pushed.")
+# else:
+#     print("❌ Tests failed. Fix will NOT be committed.")
+
+
+print("\n========== CREATING PULL REQUEST ==========")
+
+pr = create_pull_request(
+    branch="agent/fix-31593832847",
+    run_id=RUN_ID,
+    diagnosis=diagnosis,
+    patch=patch,
+)
+
+print("✅ Pull request created.")
+print("PR:", pr["html_url"])

@@ -40,3 +40,15 @@ def github_get(url, params=None):
         return response.json()
 
     return response.text
+
+def github_post(url, data):
+    response = requests.post(
+        url,
+        headers=get_headers(),
+        json=data,
+        timeout=30,
+    )
+
+    response.raise_for_status()
+
+    return response.json()
