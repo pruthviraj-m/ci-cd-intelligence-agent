@@ -1,4 +1,5 @@
 import json
+import subprocess
 
 from kafka import KafkaConsumer
 
@@ -14,12 +15,31 @@ consumer = KafkaConsumer(
     INCIDENT_TOPIC,
     bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
     group_id="ci-remediation-worker",
-    auto_offset_reset="earliest",
+    auto_offset_reset="latest",
     enable_auto_commit=True,
     value_deserializer=lambda value: json.loads(
         value.decode("utf-8")
     ),
 )
+
+
+def prepare_branch(run_id, commit_sha):
+    branch = f"remediation/{run_id}"
+
+    print(f"Preparing remediation branch: {branch}")
+    print(f"Base commit: {commit_sha}")
+
+    subprocess.run(
+        ["git", "fetch", "origin"],
+        check=True,
+    )
+
+    subprocess.run(
+        ["git", "checkout", "-B", branch, commit_sha],
+        check=True,
+    )
+
+    return branch
 
 
 print("CI remediation worker started.")
@@ -30,7 +50,9 @@ for message in consumer:
     event = message.value
 
     run_id = event["run_id"]
-    branch = event.get("branch", "")
+    commit_sha = event["commit_sha"]
+
+    branch = f"remediation/{run_id}"
 
     state = {
         "run_id": run_id,
@@ -39,7 +61,7 @@ for message in consumer:
         "status": "DETECTED",
         "conclusion": event["conclusion"],
         "failed_step": event["failed_step"],
-        "commit_sha": event["commit_sha"],
+        "commit_sha": commit_sha,
         "branch": branch,
     }
 
@@ -48,11 +70,14 @@ for message in consumer:
         state,
     )
 
-    print(
-        f"Incident {run_id} detected."
-    )
+    print(f"\nIncident {run_id} detected.")
 
     try:
+        branch = prepare_branch(
+            run_id,
+            commit_sha,
+        )
+
         result = run_remediation(
             run_id,
             branch,
@@ -67,7 +92,14 @@ for message in consumer:
         )
 
     except Exception as error:
+        save_incident(
+            run_id,
+            {
+                "status": "FAILED",
+                "error": str(error),
+            },
+        )
+
         print(
-            f"Incident {run_id} failed:"
-            f" {error}"
+            f"Incident {run_id} failed: {error}"
         )

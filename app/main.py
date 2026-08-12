@@ -1,8 +1,14 @@
-from app.incident_collector import find_latest_failed_run
-from app.remediation import run_remediation
+from app.incident_collector import (
+    find_latest_failed_run,
+    get_failed_incident,
+)
+from app.event_bus import publish_incident
 
 
-# Find the latest failed GitHub Actions run.
+# ============================================================
+# FIND LATEST FAILED CI RUN
+# ============================================================
+
 failed_run = find_latest_failed_run()
 
 run_id = failed_run["id"]
@@ -12,15 +18,25 @@ print("Latest failed run:", run_id)
 print("Branch:", branch)
 
 
-# Run the complete remediation workflow.
-result = run_remediation(
-    run_id,
+# ============================================================
+# COLLECT INCIDENT
+# ============================================================
+
+incident = get_failed_incident(run_id)
+
+
+# ============================================================
+# PUBLISH INCIDENT TO KAFKA
+# ============================================================
+
+event = publish_incident(
+    incident,
     branch,
 )
 
+print("\n========== INCIDENT PUBLISHED ==========")
+print("Kafka topic: ci-incidents")
+print("Run ID:", event["run_id"])
+print("Branch:", event["branch"])
 
-print("\n========== REMEDIATION COMPLETE ==========")
-print("Run ID:", result["run_id"])
-print("PR:", result["pr_url"])
-print("CI:", result["ci_status"])
-print("Status:", result["status"])
+print("\nWorker will now handle remediation.")

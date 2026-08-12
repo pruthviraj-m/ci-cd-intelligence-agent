@@ -6,7 +6,7 @@ from app.pr_creator import create_pull_request
 from app.ci_verifier import wait_for_ci
 
 from app.state_store import update_incident
-
+import subprocess
 
 def run_remediation(run_id, branch):
     """
@@ -140,6 +140,15 @@ def run_remediation(run_id, branch):
         raise RuntimeError("Patch failed local tests.")
 
     print("PATCH VALIDATED - ALL TESTS PASSED")
+    print("\n========== PUSHING REMEDIATION BRANCH ==========")
+
+    subprocess.run(
+    ["git", "push", "-u", "origin", branch],
+    check=True,
+)
+
+    print("Remediation branch pushed:", branch)
+
 
     update_incident(
         run_id,
