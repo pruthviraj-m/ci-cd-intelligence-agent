@@ -9,6 +9,38 @@ client = genai.Client()
 MODEL = "gemini-3.6-flash"
 
 
+def _generate_content(prompt, schema):
+    """
+    Call Gemini and convert quota failures into a clean application error.
+    """
+
+    try:
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=prompt,
+            config={
+                "response_mime_type": "application/json",
+                "response_schema": schema,
+            },
+        )
+
+        return response
+
+    except Exception as error:
+        error_text = str(error)
+
+        if (
+            "RESOURCE_EXHAUSTED" in error_text
+            or "quota" in error_text.lower()
+            or "429" in error_text
+        ):
+            raise RuntimeError(
+                "LLM_QUOTA_EXCEEDED: Gemini API quota exceeded."
+            ) from error
+
+        raise
+
+
 def diagnose_incident(incident):
 
     prompt = f"""
@@ -19,6 +51,7 @@ Analyze ONLY the evidence provided below.
 Do not invent files, errors, commits, or causes that are not supported by the evidence.
 
 Your task is to determine:
+
 1. What failed?
 2. What is the most likely root cause?
 3. What evidence proves or strongly supports the diagnosis?
@@ -74,16 +107,14 @@ Author:
 Return a structured diagnosis based strictly on this evidence.
 """
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=prompt,
-        config={
-            "response_mime_type": "application/json",
-            "response_schema": Diagnosis,
-        },
+    response = _generate_content(
+        prompt,
+        Diagnosis,
     )
 
     return Diagnosis.model_validate_json(response.text)
+
+
 def generate_patch(incident, diagnosis):
 
     prompt = f"""
@@ -121,13 +152,9 @@ Suggested fix:
 Return the minimal patch proposal.
 """
 
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=prompt,
-        config={
-            "response_mime_type": "application/json",
-            "response_schema": PatchProposal,
-        },
+    response = _generate_content(
+        prompt,
+        PatchProposal,
     )
 
     return PatchProposal.model_validate_json(response.text)
