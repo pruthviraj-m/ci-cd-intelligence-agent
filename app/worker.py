@@ -3,6 +3,7 @@ import json
 from kafka import KafkaConsumer
 
 from app.state_store import save_incident
+from app.remediation import run_remediation
 
 
 KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
@@ -29,6 +30,7 @@ for message in consumer:
     event = message.value
 
     run_id = event["run_id"]
+    branch = event.get("branch", "")
 
     state = {
         "run_id": run_id,
@@ -38,6 +40,7 @@ for message in consumer:
         "conclusion": event["conclusion"],
         "failed_step": event["failed_step"],
         "commit_sha": event["commit_sha"],
+        "branch": branch,
     }
 
     save_incident(
@@ -46,5 +49,25 @@ for message in consumer:
     )
 
     print(
-        f"Incident {run_id} stored in Redis."
+        f"Incident {run_id} detected."
     )
+
+    try:
+        result = run_remediation(
+            run_id,
+            branch,
+        )
+
+        print(
+            f"Incident {run_id} completed."
+        )
+
+        print(
+            f"Status: {result['status']}"
+        )
+
+    except Exception as error:
+        print(
+            f"Incident {run_id} failed:"
+            f" {error}"
+        )

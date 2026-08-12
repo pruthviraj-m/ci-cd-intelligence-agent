@@ -1,181 +1,26 @@
-from app.incident_collector import (
-    get_failed_incident,
-    find_latest_failed_run,
-)
-from app.llm_client import diagnose_incident
-from app.llm_client import generate_patch
-from app.patch_applier import apply_change, run_tests
-from app.pr_creator import create_pull_request
-from app.ci_verifier import wait_for_ci
+from app.incident_collector import find_latest_failed_run
+from app.remediation import run_remediation
 
 
-# ============================================================
-# 1. FIND LATEST FAILED CI RUN
-# ============================================================
-
+# Find the latest failed GitHub Actions run.
 failed_run = find_latest_failed_run()
 
-RUN_ID = failed_run["id"]
-BRANCH = failed_run["head_branch"]
+run_id = failed_run["id"]
+branch = failed_run["head_branch"]
 
-print("Latest failed run:", RUN_ID)
-print("Branch:", BRANCH)
-
-
-# ============================================================
-# 2. COLLECT INCIDENT
-# ============================================================
-
-incident = get_failed_incident(RUN_ID)
-
-print("\n========== CHANGED FILES ==========")
-
-for file in incident.changed_files:
-    print(
-        f"{file['filename']} | "
-        f"{file['status']} | "
-        f"+{file['additions']} "
-        f"-{file['deletions']}"
-    )
+print("Latest failed run:", run_id)
+print("Branch:", branch)
 
 
-print("\n========== DIFF ==========")
-print(incident.diff)
-
-
-print("\n========== CI INCIDENT ==========")
-print("Run ID:", incident.run_id)
-print("Job ID:", incident.job_id)
-print("Job:", incident.job_name)
-print("Conclusion:", incident.conclusion)
-print("Failed step:", incident.failed_step)
-print("Commit SHA:", incident.commit_sha)
-print("Commit message:", incident.commit_message)
-print("Author:", incident.author)
-
-
-print("\n========== LOGS ==========")
-print(incident.logs)
-
-
-# ============================================================
-# 3. AI DIAGNOSIS
-# ============================================================
-
-diagnosis = diagnose_incident(incident)
-
-print("\n========== AI DIAGNOSIS ==========")
-
-print("Root cause:")
-print(diagnosis.root_cause)
-
-print("\nEvidence:")
-
-for evidence in diagnosis.evidence:
-    print(
-        f"- [{evidence.source}] "
-        f"{evidence.observation}"
-    )
-
-print("\nRisk level:")
-print(diagnosis.risk_level)
-
-print("\nAffected files:")
-
-for file in diagnosis.affected_files:
-    print("-", file)
-
-print("\nSuggested fix:")
-print(diagnosis.suggested_fix)
-
-print("\nConfidence:")
-print(diagnosis.confidence)
-
-
-# ============================================================
-# 4. GENERATE PATCH
-# ============================================================
-
-patch = generate_patch(
-    incident,
-    diagnosis,
+# Run the complete remediation workflow.
+result = run_remediation(
+    run_id,
+    branch,
 )
 
-print("\n========== PATCH PROPOSAL ==========")
 
-print(patch.explanation)
-
-for change in patch.changes:
-    print("\nFile:", change.file_path)
-    print("OLD:")
-    print(change.old_text)
-    print("NEW:")
-    print(change.new_text)
-
-
-# ============================================================
-# 5. APPLY PATCH
-# ============================================================
-
-print("\n========== APPLYING PATCH ==========")
-
-for change in patch.changes:
-    message = apply_change(
-        change,
-        ".",
-    )
-
-    print(message)
-
-
-# ============================================================
-# 6. RUN LOCAL TESTS
-# ============================================================
-
-print("\n========== RUNNING TESTS ==========")
-
-test_result = run_tests(".")
-
-print(test_result["stdout"])
-
-if not test_result["passed"]:
-    print("PATCH FAILED VALIDATION")
-    print(test_result["stderr"])
-    raise RuntimeError("Patch failed local tests.")
-
-print("PATCH VALIDATED - ALL TESTS PASSED")
-
-
-# ============================================================
-# 7. CREATE PULL REQUEST
-# ============================================================
-
-print("\n========== CREATING PULL REQUEST ==========")
-
-pr = create_pull_request(
-    branch=BRANCH,
-    run_id=RUN_ID,
-    diagnosis=diagnosis,
-    patch=patch,
-)
-
-print("Pull request ready.")
-print("PR:", pr["html_url"])
-
-
-# ============================================================
-# 8. VERIFY GITHUB CI
-# ============================================================
-
-print("\n========== VERIFYING GITHUB CI ==========")
-
-ci_run = wait_for_ci(BRANCH)
-
-if ci_run["conclusion"] == "success":
-    print("GITHUB CI PASSED")
-    print("Fix verified by GitHub Actions.")
-else:
-    print("GITHUB CI FAILED")
-    print("Fix was not verified.")
-    print("Run:", ci_run["html_url"])
-    raise RuntimeError("GitHub CI failed after patch.")
+print("\n========== REMEDIATION COMPLETE ==========")
+print("Run ID:", result["run_id"])
+print("PR:", result["pr_url"])
+print("CI:", result["ci_status"])
+print("Status:", result["status"])

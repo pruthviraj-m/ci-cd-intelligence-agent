@@ -13,7 +13,7 @@ producer = KafkaProducer(
 )
 
 
-def publish_incident(incident):
+def publish_incident(incident, branch):
     event = {
         "run_id": incident.run_id,
         "job_id": incident.job_id,
@@ -21,6 +21,7 @@ def publish_incident(incident):
         "conclusion": incident.conclusion,
         "failed_step": incident.failed_step,
         "commit_sha": incident.commit_sha,
+        "branch": branch,
     }
 
     producer.send(
