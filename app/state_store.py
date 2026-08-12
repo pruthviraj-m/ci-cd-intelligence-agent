@@ -45,3 +45,14 @@ def update_incident(incident_id, updates):
     )
 
     return current
+
+def list_incidents():
+    incidents = []
+
+    for key in client.scan_iter(match="incident:*"):
+        data = client.get(key)
+
+        if data is not None:
+            incidents.append(json.loads(data))
+
+    return incidents
