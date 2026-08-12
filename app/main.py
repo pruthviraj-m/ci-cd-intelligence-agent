@@ -160,7 +160,10 @@
 #     print("Run:", ci_run["html_url"])
 
 
-from app.incident_collector import get_failed_incident
+from app.incident_collector import (
+    get_failed_incident,
+    find_latest_failed_run,
+)
 from app.llm_client import diagnose_incident
 from app.llm_client import generate_patch
 from app.patch_applier import apply_change, run_tests
@@ -168,8 +171,14 @@ from app.pr_creator import create_pull_request
 from app.ci_verifier import wait_for_ci
 
 
-RUN_ID = 31593832847
-BRANCH = "agent/fix-31593832847"
+failed_run = find_latest_failed_run()
+
+RUN_ID = failed_run["id"]
+BRANCH = failed_run["head_branch"]
+
+print("Latest failed run:", RUN_ID)
+
+incident = get_failed_incident(RUN_ID)
 
 
 # ============================================================
