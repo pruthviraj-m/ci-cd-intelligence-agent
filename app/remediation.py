@@ -4,9 +4,10 @@ from app.llm_client import generate_patch
 from app.patch_applier import apply_change, run_tests
 from app.pr_creator import create_pull_request
 from app.ci_verifier import wait_for_ci
-
 from app.state_store import update_incident
+
 import subprocess
+
 
 def run_remediation(run_id, branch):
     """
@@ -137,18 +138,53 @@ def run_remediation(run_id, branch):
         print("PATCH FAILED VALIDATION")
         print(test_result["stderr"])
 
-        raise RuntimeError("Patch failed local tests.")
+        raise RuntimeError(
+            "Patch failed local tests."
+        )
 
     print("PATCH VALIDATED - ALL TESTS PASSED")
+
+    # ============================================================
+    # 6. COMMIT REMEDIATION
+    # ============================================================
+
+    print("\n========== COMMITTING REMEDIATION ==========")
+
+    subprocess.run(
+        ["git", "add", "-A"],
+        check=True,
+    )
+
+    subprocess.run(
+        [
+            "git",
+            "commit",
+            "-m",
+            f"AI remediation for CI run {run_id}",
+        ],
+        check=True,
+    )
+
+    print("Remediation patch committed.")
+
+    # ============================================================
+    # 7. PUSH REMEDIATION BRANCH
+    # ============================================================
+
     print("\n========== PUSHING REMEDIATION BRANCH ==========")
 
     subprocess.run(
-    ["git", "push", "-u", "origin", branch],
-    check=True,
-)
+        [
+            "git",
+            "push",
+            "-u",
+            "origin",
+            branch,
+        ],
+        check=True,
+    )
 
     print("Remediation branch pushed:", branch)
-
 
     update_incident(
         run_id,
@@ -158,7 +194,7 @@ def run_remediation(run_id, branch):
     )
 
     # ============================================================
-    # 6. CREATE PULL REQUEST
+    # 8. CREATE PULL REQUEST
     # ============================================================
 
     update_incident(
@@ -190,7 +226,7 @@ def run_remediation(run_id, branch):
     )
 
     # ============================================================
-    # 7. VERIFY GITHUB CI
+    # 9. VERIFY GITHUB CI
     # ============================================================
 
     update_incident(
