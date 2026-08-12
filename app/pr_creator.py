@@ -11,6 +11,11 @@ def create_pull_request(
     diagnosis,
     patch,
 ):
+    existing_pr = find_existing_pr(branch)
+
+    if existing_pr:
+        print("Existing PR found. Reusing it.")
+        return existing_pr
     url = (
         f"https://api.github.com/repos/"
         f"{OWNER}/{REPO}/pulls"
@@ -93,3 +98,23 @@ def is_pr_approved(pr_number):
             return True
 
     return False
+
+def find_existing_pr(branch):
+    url = (
+        f"https://api.github.com/repos/"
+        f"{OWNER}/{REPO}/pulls"
+    )
+
+    data = github_get(
+        url,
+        params={
+            "state": "open",
+            "head": f"{OWNER}:{branch}",
+            "base": "main",
+        },
+    )
+
+    if not data:
+        return None
+
+    return data[0]
