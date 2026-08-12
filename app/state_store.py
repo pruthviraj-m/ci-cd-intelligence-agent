@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 import redis
 
@@ -39,12 +40,17 @@ def update_incident(incident_id, updates):
 
     current.update(updates)
 
+    current["updated_at"] = datetime.now(
+        timezone.utc
+    ).isoformat()
+
     save_incident(
         incident_id,
         current,
     )
 
     return current
+
 
 def list_incidents():
     incidents = []
@@ -54,5 +60,13 @@ def list_incidents():
 
         if data is not None:
             incidents.append(json.loads(data))
+
+    incidents.sort(
+        key=lambda incident: incident.get(
+            "updated_at",
+            "",
+        ),
+        reverse=True,
+    )
 
     return incidents

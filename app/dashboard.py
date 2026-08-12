@@ -1,6 +1,6 @@
 import streamlit as st
 
-from state_store import list_incidents
+from app.state_store import list_incidents
 
 
 st.set_page_config(
@@ -19,13 +19,6 @@ incidents = list_incidents()
 if not incidents:
     st.info("No CI incidents recorded yet.")
     st.stop()
-
-
-incidents = sorted(
-    incidents,
-    key=lambda incident: incident.get("run_id", 0),
-    reverse=True,
-)
 
 
 latest = incidents[0]
@@ -65,6 +58,7 @@ st.divider()
 
 left, right = st.columns(2)
 
+
 with left:
     st.subheader("Incident")
 
@@ -88,6 +82,11 @@ with left:
         latest.get("commit_sha", "N/A"),
     )
 
+    st.write(
+        "**Updated:**",
+        latest.get("updated_at", "N/A"),
+    )
+
 
 with right:
     st.subheader("Remediation")
@@ -108,15 +107,24 @@ with right:
         latest.get("ci_status", "N/A"),
     )
 
+    if latest.get("failure_reason"):
+        st.error(
+            latest["failure_reason"]
+        )
+
 
 st.divider()
 
+
 st.subheader("Incident History")
 
+
 for incident in incidents:
+    run_id = incident.get("run_id", "N/A")
+    status = incident.get("status", "UNKNOWN")
+
     with st.expander(
-        f"Run {incident.get('run_id')} — "
-        f"{incident.get('status', 'UNKNOWN')}"
+        f"Run {run_id} — {status}"
     ):
         st.json(incident)
 
