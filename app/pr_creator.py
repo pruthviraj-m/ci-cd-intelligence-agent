@@ -1,5 +1,5 @@
-from app.github_client import github_post
 
+from app.github_client import github_get, github_post
 
 OWNER = "pruthviraj-m"
 REPO = "ci-cd-intelligence-agent"
@@ -76,3 +76,20 @@ This pull request was generated automatically by the CI/CD Intelligence Agent.
     }
 
     return github_post(url, data)
+
+def get_pull_request_reviews(pr_number):
+    url = (
+        f"https://api.github.com/repos/"
+        f"{OWNER}/{REPO}/pulls/{pr_number}/reviews"
+    )
+
+    return github_get(url)
+
+def is_pr_approved(pr_number):
+    reviews = get_pull_request_reviews(pr_number)
+
+    for review in reviews:
+        if review["state"] == "APPROVED":
+            return True
+
+    return False
