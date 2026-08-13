@@ -2,7 +2,7 @@ import json
 import subprocess
 
 from kafka import KafkaConsumer
-
+from app.state_store import save_incident, update_incident
 from app.state_store import save_incident
 from app.remediation import run_remediation
 
@@ -92,13 +92,13 @@ for message in consumer:
         )
 
     except Exception as error:
-        save_incident(
-            run_id,
-            {
-                "status": "FAILED",
-                "error": str(error),
-            },
-        )
+        update_incident(
+    run_id,
+    {
+        "status": "FAILED",
+        "failure_reason": str(error),
+    },
+)
 
         print(
             f"Incident {run_id} failed: {error}"
