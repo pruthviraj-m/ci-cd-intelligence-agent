@@ -58,7 +58,23 @@ def _generate_structured(model_class, prompt):
     return model_class.model_validate_json(content)
 
 
-def diagnose_incident(incident):
+def diagnose_incident(incident, hindsight=None):
+    hindsight = hindsight or []
+
+    hindsight_context = "No relevant previous incidents found."
+
+    if hindsight:
+        hindsight_context = "\n\n".join(
+            f"""
+Previous incident:
+Run: {memory.get("run_id")}
+Previous root cause: {memory.get("root_cause")}
+Previous fix: {memory.get("suggested_fix")}
+Previous outcome: {memory.get("status")}
+Similarity evidence: {", ".join(memory.get("matched_terms", []))}
+"""
+            for memory in hindsight
+        )
 
     prompt = f"""
 You are an expert software reliability engineer diagnosing a CI/CD failure.
@@ -87,6 +103,17 @@ Rules:
 - Confidence must reflect the evidence.
 - risk_level must be "low", "medium", or "high".
 - If evidence is insufficient, say so.
+
+========== HINDSIGHT MEMORY ==========
+
+The following are previous incidents recalled from
+the agent's persistent memory.
+
+Use them only as historical context.
+Do not assume the current incident has the same cause.
+The current CI logs and diff remain the primary evidence.
+
+{hindsight_context}
 
 ========== CI INCIDENT ==========
 

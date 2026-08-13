@@ -4,7 +4,11 @@ from app.llm_client import generate_patch
 from app.patch_applier import apply_change, run_tests
 from app.pr_creator import create_pull_request
 from app.ci_verifier import wait_for_ci
-from app.state_store import update_incident
+from app.state_store import (
+    update_incident,
+    recall_similar_incidents,
+    retain_hindsight,
+)
 
 import subprocess
 
@@ -37,7 +41,7 @@ def run_remediation(run_id, branch):
     print("Commit SHA:", incident.commit_sha)
 
     # ============================================================
-    # 2. AI DIAGNOSIS
+    # 2. AI DIAGNOSIS + HINDSIGHT
     # ============================================================
 
     update_incident(
@@ -47,7 +51,39 @@ def run_remediation(run_id, branch):
         },
     )
 
-    diagnosis = diagnose_incident(incident)
+    hindsight = recall_similar_incidents(
+        incident,
+        limit=3,
+    )
+
+    print("\n========== HINDSIGHT RECALL ==========")
+
+    if hindsight:
+        print(
+            f"Recalled {len(hindsight)} "
+            "similar previous incident(s)."
+        )
+
+        for memory in hindsight:
+            print(
+                f"- Run {memory['run_id']}: "
+                f"{memory['root_cause']}"
+            )
+    else:
+        print("No relevant previous incidents found.")
+
+    update_incident(
+        run_id,
+        {
+            "status": "DIAGNOSING",
+            "hindsight_recalled": hindsight,
+        },
+    )
+
+    diagnosis = diagnose_incident(
+        incident,
+        hindsight=hindsight,
+    )
 
     print("\n========== AI DIAGNOSIS ==========")
     print("Root cause:")
@@ -266,6 +302,19 @@ def run_remediation(run_id, branch):
             "ci_status": "success",
         },
     )
+
+    # ============================================================
+    # 10. HINDSIGHT RETAIN
+    # ============================================================
+
+    retain_hindsight(
+        run_id,
+        diagnosis,
+        outcome="CI_PASSED",
+    )
+
+    print("\n========== HINDSIGHT RETAIN ==========")
+    print("Incident outcome stored for future recall.")
 
     return {
         "run_id": run_id,

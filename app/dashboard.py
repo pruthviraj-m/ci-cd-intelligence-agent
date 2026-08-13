@@ -10,7 +10,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.state_store import list_incidents, save_incident
+from app.state_store import (
+    list_incidents,
+    save_incident,
+    recall_similar_incidents,
+)
 
 
 # ============================================================
@@ -632,13 +636,12 @@ def risk_badge(risk):
     }.get(value, "badge-amber")
     return f'<span class="badge {cls}">{escape(value.upper())} RISK</span>'
 
-
 def make_demo_incident():
     now = datetime.now(timezone.utc)
-    # Milliseconds avoid duplicate IDs if the button is clicked twice quickly.
+
     run_id = f"DEMO-{int(now.timestamp() * 1000)}"
 
-    return run_id, {
+    incident = {
         "run_id": run_id,
         "job_id": "demo-job-001",
         "job_name": "test",
@@ -665,7 +668,17 @@ def make_demo_incident():
         "confidence": 100.0,
         "updated_at": now.isoformat(),
         "demo": True,
+        "logs": (
+            "pytest failed during test collection with "
+            "SyntaxError in app/calculator.py"
+        ),
+        "diff": (
+            "app/calculator.py was modified and introduced "
+            "an intentional syntax error."
+        ),
     }
+
+    return run_id, incident
 
 
 def choose_active(incidents):
