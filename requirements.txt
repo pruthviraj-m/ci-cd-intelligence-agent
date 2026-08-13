@@ -4,3 +4,5 @@ openai
 pydantic
 google-genai
 kafka-python
+streamlit
+redis
