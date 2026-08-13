@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 
 from kafka import KafkaConsumer
@@ -7,7 +8,10 @@ from app.state_store import save_incident
 from app.remediation import run_remediation
 
 
-KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
+KAFKA_BOOTSTRAP_SERVERS = os.getenv(
+    "KAFKA_BOOTSTRAP_SERVERS",
+    "localhost:9092",
+)
 INCIDENT_TOPIC = "ci-incidents"
 
 
