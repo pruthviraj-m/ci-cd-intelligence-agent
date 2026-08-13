@@ -14,13 +14,10 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-
       KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -29,15 +26,13 @@ services:
   worker:
     build: .
     container_name: ci-agent-worker
+    entrypoint: ["/app/entrypoint.sh"]
     environment:
       GITHUB_TOKEN: ${GITHUB_TOKEN}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY}
-
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-
       REDIS_HOST: redis
       REDIS_PORT: 6379
-
     depends_on:
       - kafka
       - redis
@@ -45,7 +40,10 @@ services:
   dashboard:
     build: .
     container_name: ci-agent-dashboard
-    entrypoint: ["/entrypoint.sh"]
+    entrypoint: []
+    command: streamlit run app/dashboard.py --server.address=0.0.0.0 --server.port=8501
+    environment:
+      REDIS_HOST: redis
       REDIS_PORT: 6379
     ports:
       - "8501:8501"
