@@ -1,44 +1,61 @@
-from google import genai
+import os
+
+from openai import OpenAI
 
 from app.diagnosis import Diagnosis
 from app.patch import PatchProposal
 
 
-client = genai.Client()
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 
-MODEL = "gemini-3.6-flash"
+if not NVIDIA_API_KEY:
+    raise RuntimeError(
+        "NVIDIA_API_KEY environment variable is not set."
+    )
 
 
-def _generate_content(prompt, schema):
-    """
-    Call Gemini and convert quota failures into a clean application error.
-    """
+client = OpenAI(
+    base_url="https://integrate.api.nvidia.com/v1",
+    api_key=NVIDIA_API_KEY,
+)
 
+MODEL = "z-ai/glm-5.2"
+
+
+def _generate_structured(model_class, prompt):
     try:
-        response = client.models.generate_content(
+        response = client.chat.completions.create(
             model=MODEL,
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-                "response_schema": schema,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            temperature=0.1,
+            max_tokens=8192,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": model_class.__name__,
+                    "schema": model_class.model_json_schema(),
+                },
             },
         )
 
-        return response
-
     except Exception as error:
-        error_text = str(error)
+        raise RuntimeError(
+            f"NVIDIA LLM request failed: {error}"
+        ) from error
 
-        if (
-            "RESOURCE_EXHAUSTED" in error_text
-            or "quota" in error_text.lower()
-            or "429" in error_text
-        ):
-            raise RuntimeError(
-                "LLM_QUOTA_EXCEEDED: Gemini API quota exceeded."
-            ) from error
+    content = response.choices[0].message.content
 
-        raise
+    if not content:
+        raise RuntimeError(
+            "NVIDIA LLM returned an empty response."
+        )
+
+    return model_class.model_validate_json(content)
 
 
 def diagnose_incident(incident):
@@ -50,26 +67,26 @@ Analyze ONLY the evidence provided below.
 
 Do not invent files, errors, commits, or causes that are not supported by the evidence.
 
-Your task is to determine:
+Determine:
 
 1. What failed?
-2. What is the most likely root cause?
-3. What evidence proves or strongly supports the diagnosis?
-4. Which files are affected?
-5. What concrete fix should be applied?
-6. How confident are you?
-7. What is the risk level of applying the suggested fix?
+2. Most likely root cause.
+3. Evidence supporting the diagnosis.
+4. Affected files.
+5. Concrete fix.
+6. Confidence.
+7. Risk level.
 
 Rules:
 
-- Use ONLY the supplied evidence.
+- Use ONLY supplied evidence.
 - Do not invent files, errors, commits, or code changes.
-- Do not list a file as affected unless the evidence directly implicates it.
-- Separate factual observations from conclusions.
+- Do not list a file unless directly implicated.
+- Separate observations from conclusions.
 - Evidence must identify its source.
-- Confidence must reflect the strength of the available evidence.
-- Use "low", "medium", or "high" for risk_level.
-- If evidence is insufficient, say so instead of guessing.
+- Confidence must reflect the evidence.
+- risk_level must be "low", "medium", or "high".
+- If evidence is insufficient, say so.
 
 ========== CI INCIDENT ==========
 
@@ -107,12 +124,10 @@ Author:
 Return a structured diagnosis based strictly on this evidence.
 """
 
-    response = _generate_content(
-        prompt,
+    return _generate_structured(
         Diagnosis,
+        prompt,
     )
-
-    return Diagnosis.model_validate_json(response.text)
 
 
 def generate_patch(incident, diagnosis):
@@ -120,18 +135,15 @@ def generate_patch(incident, diagnosis):
     prompt = f"""
 You are an expert software engineer fixing a CI/CD failure.
 
-You have already received a diagnosis.
-
-Generate the smallest possible code change that fixes the diagnosed
-problem.
+Generate the smallest possible code change that fixes the diagnosed problem.
 
 IMPORTANT RULES:
 
 - Only modify files directly supported by the evidence.
 - Make the smallest change necessary.
 - Do not rewrite unrelated code.
-- Do not modify tests unless the diagnosis explicitly proves the test is wrong.
-- The old_text MUST exactly match text that exists in the current file.
+- Do not modify tests unless explicitly justified.
+- old_text MUST exactly match text in the current file.
 - Do not invent file paths.
 - Do not add unnecessary dependencies.
 
@@ -152,9 +164,7 @@ Suggested fix:
 Return the minimal patch proposal.
 """
 
-    response = _generate_content(
-        prompt,
+    return _generate_structured(
         PatchProposal,
+        prompt,
     )
-
-    return PatchProposal.model_validate_json(response.text)
